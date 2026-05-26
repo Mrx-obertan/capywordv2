@@ -5,6 +5,19 @@ const { Server } = require('socket.io');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 
+// ─── Temp image store (in-memory, 15s TTL) ────────────────────────────────────
+const tempImages = new Map(); // imageId -> { data, mimeType, expiresAt, chatId }
+const IMAGE_TTL_MS = 15000;  // 15 segundos
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB máximo
+
+function purgeExpiredImages() {
+  const now = Date.now();
+  tempImages.forEach((img, id) => {
+    if (now >= img.expiresAt) tempImages.delete(id);
+  });
+}
+setInterval(purgeExpiredImages, 5000);
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -131,6 +144,26 @@ app.get('/api/rooms', (req, res) => {
 
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
+// ─── Temp Image Upload ─────────────────────────────────────────────────────
+app.post('/api/upload-image', express.raw({ type: ['image/jpeg','image/png','image/gif','image/webp'], limit: '2mb' }), (req, res) => {
+  const mimeType = req.headers['content-type'];
+  if (!mimeType || !mimeType.startsWith('image/')) return res.status(400).json({ error: 'Tipo no soportado' });
+  if (!req.body || req.body.length === 0) return res.status(400).json({ error: 'Sin datos' });
+  if (req.body.length > MAX_IMAGE_SIZE) return res.status(413).json({ error: 'Imagen muy grande (máx 2MB)' });
+  const imageId = uuidv4();
+  const expiresAt = Date.now() + IMAGE_TTL_MS;
+  tempImages.set(imageId, { data: req.body, mimeType, expiresAt });
+  res.json({ imageId, expiresIn: IMAGE_TTL_MS / 1000 });
+});
+
+app.get('/api/image/:imageId', (req, res) => {
+  const img = tempImages.get(req.params.imageId);
+  if (!img || Date.now() >= img.expiresAt) return res.status(404).json({ error: 'Imagen expirada' });
+  res.set('Content-Type', img.mimeType);
+  res.set('Cache-Control', 'no-store');
+  res.send(img.data);
+});
+
 // ─── Socket.io ────────────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
 
@@ -240,19 +273,35 @@ io.on('connection', (socket) => {
     io.to(targetSid).emit('private:incoming', { chatId, fromNick: user.nick, fromColor: user.color });
   });
 
-  socket.on('private:message', ({ chatId, text }) => {
+  socket.on('private:message', ({ chatId, text, imageId }) => {
     const user = state.users.get(socket.id);
     if (!user) return;
-    if (!text || text.trim().length === 0 || text.length > 300) return;
 
     const chat = state.privateChats.get(chatId);
     if (!chat || !chat.participants.includes(user.nick)) return;
 
+    // Image message
+    if (imageId) {
+      const img = tempImages.get(imageId);
+      if (!img || Date.now() >= img.expiresAt) {
+        socket.emit('private:error', { msg: 'La imagen ya expiró antes de enviarse' }); return;
+      }
+      const msg = { id: uuidv4(), nick: user.nick, color: user.color, imageId, expiresAt: img.expiresAt, ts: Date.now() };
+      // Don't persist image messages in history
+      const otherNick = chat.participants.find(n => n !== user.nick);
+      let otherSid = null;
+      state.users.forEach((u, sid) => { if (u.nick === otherNick) otherSid = sid; });
+      socket.emit('private:message', { chatId, msg });
+      if (otherSid) io.to(otherSid).emit('private:message', { chatId, msg });
+      return;
+    }
+
+    // Text message
+    if (!text || text.trim().length === 0 || text.length > 300) return;
     const msg = { id: uuidv4(), nick: user.nick, color: user.color, text: text.trim(), ts: Date.now() };
     chat.messages.push(msg);
     if (chat.messages.length > 100) chat.messages.shift();
 
-    // Send to both participants
     const otherNick = chat.participants.find(n => n !== user.nick);
     let otherSid = null;
     state.users.forEach((u, sid) => { if (u.nick === otherNick) otherSid = sid; });
