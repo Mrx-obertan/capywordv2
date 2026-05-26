@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>CapyWorld Chat 🐾</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>"/>
+<link rel="stylesheet" href="/css/style.css"/>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="loginScreen" class="login-screen">
+  <div class="login-bg-stars" id="loginStars"></div>
+  <div class="login-box">
+    <div class="login-logo">🐾 Capy<span>World</span></div>
+    <div class="login-subtitle">★ El Chat Latino de las Capiguaras ★</div>
+    <div class="login-capy" id="loginCapy"></div>
+    <div class="login-form">
+      <div class="lf-group">
+        <label>Tu Nick</label>
+        <input id="loginNick" maxlength="16" placeholder="CapyFan23..." autocomplete="off" spellcheck="false"/>
+      </div>
+      <div class="lf-group">
+        <label>Contraseña Admin <span style="color:var(--text-lo)">(opcional)</span></label>
+        <input id="loginPass" type="password" placeholder="Solo para admins..."/>
+      </div>
+      <div class="lf-group">
+        <label>Sala de entrada</label>
+        <select id="loginRoom"><option>Capibara Central 🐾</option></select>
+      </div>
+      <div id="loginError" class="login-error" style="display:none"></div>
+      <button class="login-btn" id="loginBtn" onclick="doLogin()">¡¡ENTRAR AL CHAT!!</button>
+    </div>
+    <div class="login-footer">Conectados ahora: <span id="loginOnline">...</span> capys 🌐</div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="chatApp" class="chat-app" style="display:none">
+  <header class="app-header">
+    <div class="marquee-bar"><span class="marquee-inner" id="marqueeText">🌟 BIENVENIDO A CAPYWORLD CHAT 🌟 El chat moderno de las capiguaras de latinoamerica 🐾 ¡¡ENTRA YA!! ¡¡ES GRATIS!! 🎉</span></div>
+    <div class="title-bar">
+      <div class="logo">🐾 Capy<span>World</span></div>
+      <div class="header-center"><div class="rooms-bar" id="roomsBar"></div></div>
+      <div class="header-right">
+        <div class="online-pill">● <span id="onlineBadge">0</span> online</div>
+        <div class="my-nick-badge" id="myNickBadge"></div>
+        <button class="hdr-btn" onclick="openAvatarCustomizer()" title="Personalizar avatar">🎨</button>
+        <button class="hdr-btn" onclick="logout()" title="Salir">🚪</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="app-body">
+    <aside class="users-panel" id="usersPanel">
+      <div class="panel-hdr">👥 En sala <span id="usersCount">0</span></div>
+      <div class="users-list" id="usersList"></div>
+    </aside>
+
+    <main class="center-col">
+      <div class="world-view" id="worldView">
+        <div class="world-bg"></div>
+        <div id="worldStars" class="world-stars"></div>
+        <div class="ground"><div class="water"></div><div class="water water2"></div></div>
+        <div id="worldCapys" class="world-capys"></div>
+        <div class="world-room-name" id="worldRoomName">Capibara Central 🐾</div>
+      </div>
+      <div class="messages-area" id="messagesArea"></div>
+      <div class="typing-bar" id="typingBar" style="display:none"></div>
+      <div class="input-area">
+        <div class="emoji-bar">
+          <span class="eq" onclick="addEmoji('😂')">😂</span><span class="eq" onclick="addEmoji('❤️')">❤️</span>
+          <span class="eq" onclick="addEmoji('🐾')">🐾</span><span class="eq" onclick="addEmoji('🔥')">🔥</span>
+          <span class="eq" onclick="addEmoji('💋')">💋</span><span class="eq" onclick="addEmoji('🎉')">🎉</span>
+          <span class="eq" onclick="addEmoji('😏')">😏</span><span class="eq" onclick="addEmoji('👀')">👀</span>
+          <span class="eq" onclick="addEmoji('💯')">💯</span><span class="eq" onclick="addEmoji('🤣')">🤣</span>
+          <span class="eq" onclick="addEmoji('😍')">😍</span><span class="eq" onclick="addEmoji('🦫')">🦫</span>
+          <span class="eq" onclick="addEmoji('🥳')">🥳</span><span class="eq" onclick="addEmoji('😎')">😎</span>
+          <span class="eq" onclick="addEmoji('🌴')">🌴</span><span class="eq" onclick="addEmoji('⚽')">⚽</span>
+        </div>
+        <div class="input-row">
+          <input class="msg-input" id="msgInput" placeholder="Escribe tu mensaje... (Enter para enviar)" maxlength="300"
+            onkeydown="handleKey(event)" oninput="handleTyping()"/>
+          <button class="send-btn" onclick="sendMessage()">ENVIAR ▶</button>
+        </div>
+      </div>
+    </main>
+
+    <aside class="right-panel">
+      <div class="ads-banner">✨ CAPYWORLD PREMIUM ✨</div>
+      <div class="rp-section">
+        <div class="rp-title">🌐 Online</div>
+        <div class="counter-big" id="onlineCountBig">0</div>
+        <div class="rp-sub">en todo el sitio</div>
+      </div>
+      <div class="rp-section">
+        <div class="rp-title">😊 Mi Mood</div>
+        <div class="mood-grid" id="moodGrid">
+          <span class="mq" onclick="setMood('😊',this)">😊</span><span class="mq" onclick="setMood('😎',this)">😎</span>
+          <span class="mq" onclick="setMood('😍',this)">😍</span><span class="mq" onclick="setMood('😴',this)">😴</span>
+          <span class="mq" onclick="setMood('🤔',this)">🤔</span><span class="mq" onclick="setMood('😡',this)">😡</span>
+          <span class="mq" onclick="setMood('🥳',this)">🥳</span><span class="mq" onclick="setMood('💔',this)">💔</span>
+          <span class="mq" onclick="setMood('🔥',this)">🔥</span><span class="mq" onclick="setMood('💪',this)">💪</span>
+        </div>
+        <button class="customize-btn" onclick="openAvatarCustomizer()">🎨 Personalizar Avatar</button>
+      </div>
+      <div class="rp-section">
+        <div class="rp-title">💬 Privados</div>
+        <div class="private-list" id="privateList">
+          <div class="rp-empty">Haz clic en un usuario</div>
+        </div>
+      </div>
+      <div class="rp-section" id="adminQuickPanel" style="display:none">
+        <div class="rp-title">⚙️ Admin</div>
+        <button class="admin-quick-btn" onclick="openAdmin()">Panel Admin</button>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- PRIVATE WINDOWS -->
+<div id="privateWindows"></div>
+
+<!-- AVATAR CUSTOMIZER MODAL -->
+<div id="avatarModal" class="modal-overlay" style="display:none" onclick="closeAvatarIfBg(event)">
+  <div class="avatar-modal">
+    <div class="av-header">
+      <div class="av-title">🎨 Personalizar tu Capiguara</div>
+      <button class="modal-close" onclick="closeAvatarCustomizer()">✕</button>
+    </div>
+    <div class="av-body">
+      <div class="av-preview-col">
+        <div class="av-preview" id="avPreview"></div>
+        <div style="font-size:11px;color:var(--text-lo);text-align:center">Vista previa</div>
+        <button class="av-save-btn" onclick="saveAvatar()">💾 Guardar Avatar</button>
+      </div>
+      <div class="av-options-col">
+        <div class="av-section">
+          <div class="av-section-title">Color del cuerpo</div>
+          <div class="av-color-grid" id="avBodyColors"></div>
+        </div>
+        <div class="av-section">
+          <div class="av-section-title">Accesorio / Sombrero</div>
+          <div class="av-hat-grid" id="avHats"></div>
+        </div>
+        <div class="av-section">
+          <div class="av-section-title">Color del accesorio</div>
+          <div class="av-acc-grid" id="avAccColors"></div>
+        </div>
+        <div class="av-section">
+          <div class="av-section-title">Ojos</div>
+          <div class="av-hat-grid" id="avEyes"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ADMIN MODAL -->
+<div id="adminModal" class="modal-overlay" style="display:none" onclick="closeAdminIfBg(event)">
+  <div class="admin-modal">
+    <div class="admin-header">
+      <div class="admin-title">⚙️ Panel de Administración — CapyWorld</div>
+      <button class="modal-close" onclick="closeAdmin()">✕</button>
+    </div>
+    <div class="admin-tabs">
+      <button class="atab active" onclick="switchAdminTab('users',this)">👥 Usuarios</button>
+      <button class="atab" onclick="switchAdminTab('rooms',this)">🏠 Salas</button>
+      <button class="atab" onclick="switchAdminTab('stats',this)">📊 Stats</button>
+      <button class="atab" onclick="switchAdminTab('bans',this)">⛔ Baneados</button>
+      <button class="atab" onclick="switchAdminTab('broadcast',this)">📢 Broadcast</button>
+    </div>
+    <div class="admin-body">
+      <div id="atab-users" class="atab-content active">
+        <input class="admin-search" id="adminUserSearch" placeholder="Buscar usuario..." oninput="filterAdminUsers()"/>
+        <div class="admin-table-wrap">
+          <table class="admin-table" id="adminUsersTable">
+            <thead><tr><th>Nick</th><th>Sala</th><th>Mood</th><th>Estado</th><th>Acciones</th></tr></thead>
+            <tbody id="adminUsersTbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="atab-rooms" class="atab-content">
+        <div class="admin-create-room">
+          <input class="admin-input" id="newRoomName" placeholder="Nombre nueva sala..."/>
+          <input class="admin-input" id="newRoomDesc" placeholder="Descripción..."/>
+          <button class="admin-btn-green" onclick="adminCreateRoom()">+ Crear Sala</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Sala</th><th>Descripción</th><th>Online</th><th>Mensajes</th><th>Acciones</th></tr></thead>
+            <tbody id="adminRoomsTbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="atab-stats" class="atab-content"><div class="stats-grid" id="statsGrid"></div></div>
+      <div id="atab-bans" class="atab-content">
+        <div class="admin-create-room">
+          <input class="admin-input" id="manualBanNick" placeholder="Nick a banear..."/>
+          <button class="admin-btn-red" onclick="adminManualBan()">⛔ Banear</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th>Nick baneado</th><th>Acciones</th></tr></thead>
+            <tbody id="adminBansTbody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div id="atab-broadcast" class="atab-content">
+        <div style="padding:16px">
+          <label class="admin-label">Mensaje global para todos los usuarios</label>
+          <textarea class="admin-textarea" id="broadcastMsg" placeholder="Escribe el mensaje de anuncio..."></textarea>
+          <button class="admin-btn-orange" onclick="adminBroadcast()">📢 Enviar a Todos</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTEXT MENU -->
+<div id="contextMenu" class="context-menu" style="display:none">
+  <div class="cm-nick" id="cmNick"></div>
+  <div class="cm-item" onclick="ctxPrivate()">💬 Chat Privado</div>
+  <div class="cm-item" onclick="ctxMention()">@ Mencionar</div>
+  <div class="cm-item admin-only cm-kick" onclick="ctxKick()" style="display:none">🚫 Expulsar</div>
+  <div class="cm-item admin-only cm-ban" onclick="ctxBan()" style="display:none">⛔ Banear</div>
+  <div class="cm-item admin-only cm-mute" onclick="ctxMute()" style="display:none">🔇 Silenciar</div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/app.js"></script>
+</body>
+</html>
