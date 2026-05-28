@@ -38,7 +38,6 @@ function capySVG(color, accColor, hatId, eyeId) {
   hatId = hatId ?? 0;
   eyeId = eyeId ?? 0;
 
-  // HAT
   const hats = {
     0: `<rect x="12" y="6" width="16" height="2.5" fill="${accColor}" stroke="#111" stroke-width="0.5" rx="1"/>
         <rect x="15" y="1.5" width="10" height="5.5" fill="${accColor}" stroke="#111" stroke-width="0.5" rx="1"/>`,
@@ -64,7 +63,6 @@ function capySVG(color, accColor, hatId, eyeId) {
         <line x1="11" y1="8" x2="29" y2="8" stroke="#111" stroke-width="0.8" opacity="0.4"/>`
   };
 
-  // EYES
   const eyes = {
     0: `<circle cx="16.5" cy="20.5" r="2.5" fill="#fff" stroke="#222" stroke-width="0.5"/>
         <circle cx="23.5" cy="20.5" r="2.5" fill="#fff" stroke="#222" stroke-width="0.5"/>
@@ -154,7 +152,6 @@ function closeAvatarCustomizer() { document.getElementById('avatarModal').style.
 function closeAvatarIfBg(e) { if(e.target===document.getElementById('avatarModal')) closeAvatarCustomizer(); }
 
 function buildCustomizerUI() {
-  // Body colors
   const bodyGrid = document.getElementById('avBodyColors');
   bodyGrid.innerHTML = '';
   AV.BODY_COLORS.forEach(c => {
@@ -165,8 +162,6 @@ function buildCustomizerUI() {
     el.onclick = () => { tmpAv.bodyColor = c; document.querySelectorAll('#avBodyColors .av-color-swatch').forEach(s=>s.classList.remove('active')); el.classList.add('active'); updatePreview(); };
     bodyGrid.appendChild(el);
   });
-
-  // Hats
   const hatGrid = document.getElementById('avHats');
   hatGrid.innerHTML = '';
   AV.HATS.forEach(h => {
@@ -176,8 +171,6 @@ function buildCustomizerUI() {
     el.onclick = () => { tmpAv.hatId = h.id; document.querySelectorAll('#avHats .av-hat-btn').forEach(b=>b.classList.remove('active')); el.classList.add('active'); updatePreview(); };
     hatGrid.appendChild(el);
   });
-
-  // Acc colors
   const accGrid = document.getElementById('avAccColors');
   accGrid.innerHTML = '';
   AV.ACC_COLORS.forEach(c => {
@@ -188,8 +181,6 @@ function buildCustomizerUI() {
     el.onclick = () => { tmpAv.accColor = c; document.querySelectorAll('#avAccColors .av-acc-swatch').forEach(s=>s.classList.remove('active')); el.classList.add('active'); updatePreview(); };
     accGrid.appendChild(el);
   });
-
-  // Eyes
   const eyeGrid = document.getElementById('avEyes');
   eyeGrid.innerHTML = '';
   AV.EYES.forEach(e => {
@@ -209,7 +200,6 @@ function saveAvatar() {
   S.avatar = { ...tmpAv };
   closeAvatarCustomizer();
   if(S.socket) S.socket.emit('user:avatar', S.avatar);
-  // Refresh world and user list
   renderWorldCapys(S.users);
   renderUsersList(S.users);
 }
@@ -289,6 +279,7 @@ function bindSocketEvents() {
   sk.on('private:incoming', ({chatId,fromNick,fromColor})=>showIncomingPrivate(chatId,fromNick,fromColor));
   sk.on('private:message', ({chatId,msg})=>handlePrivateMessage(chatId,msg));
   sk.on('private:error', ({msg})=>alert('💬 '+msg));
+  sk.on('private:image_expired', ({imageId, chatId})=>handleImageExpired(imageId, chatId));
   sk.on('admin:stats', (data)=>renderAdminStats(data));
 }
 
@@ -382,16 +373,22 @@ function openPrivateWindow(chatId, toNick, toColor, history) {
   if(S.privateChats[chatId]?.windowEl){ S.privateChats[chatId].windowEl.style.display='flex'; return; }
   const win=document.createElement('div'); win.className='private-window';
   const offset=Object.keys(S.privateChats).length;
-  win.style.right=(16+offset*278)+'px'; win.id='pw-'+chatId;
+  win.style.right=(16+offset*290)+'px'; win.id='pw-'+chatId;
   win.innerHTML=`<div class="pw-header" id="pwh-${chatId}">
     <div style="width:22px;height:22px;flex-shrink:0">${capySVG(toColor,null,0,0).replace('viewBox="0 0 40 40"','viewBox="0 0 40 40" width="22" height="22"')}</div>
     <div class="pw-title" style="color:${esc(toColor)}">💬 ${esc(toNick)}</div>
-    <button class="pw-close" onclick="closePrivateWindow('${chatId}')">✕</button>
+    <div class="pw-header-actions">
+      <span class="pw-ephemeral-badge">⚡ Efímero</span>
+      <button class="pw-close" onclick="closePrivateWindow('${chatId}')">✕</button>
+    </div>
   </div>
   <div class="pw-msgs" id="pwm-${chatId}"></div>
   <div class="pw-input-row">
+    <label class="pw-img-btn" title="Enviar imagen temporal (15s)" onclick="triggerImageUpload('${chatId}')">
+      📷
+    </label>
     <input class="pw-input" id="pwi-${chatId}" placeholder="Mensaje privado..." maxlength="300" onkeydown="if(event.key==='Enter'){sendPrivateMsg('${chatId}');event.preventDefault()}"/>
-    <button class="pw-send" onclick="sendPrivateMsg('${chatId}')">ENVIAR</button>
+    <button class="pw-send" onclick="sendPrivateMsg('${chatId}')">➤</button>
   </div>`;
   document.getElementById('privateWindows').appendChild(win);
   S.privateChats[chatId]={toNick,toColor,messages:[],unread:0,windowEl:win};
@@ -404,18 +401,133 @@ function openPrivateWindow(chatId, toNick, toColor, history) {
 function closePrivateWindow(chatId) { const c=S.privateChats[chatId]; if(c?.windowEl) c.windowEl.style.display='none'; }
 function sendPrivateMsg(chatId) { const inp=document.getElementById('pwi-'+chatId); const text=inp.value.trim(); if(!text)return; S.socket.emit('private:message',{chatId,text}); inp.value=''; }
 
-function handlePrivateMessage(chatId, msg) {
-  if(!S.privateChats[chatId]?.windowEl) openPrivateWindow(chatId,msg.nick,msg.color,[]);
-  appendPrivateMsg(chatId,msg);
-  scrollBottom(document.getElementById('pwm-'+chatId));
-  if(msg.nick!==S.myNick&&S.privateChats[chatId]){ S.privateChats[chatId].unread=(S.privateChats[chatId].unread||0)+1; updatePrivateList(); }
+// ─── IMAGEN TEMPORAL ─────────────────────────────────────────────────────────
+function triggerImageUpload(chatId) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.style.display = 'none';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 3_000_000) { alert('⚠️ Imagen muy grande. Máximo 3MB.'); return; }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const base64 = ev.target.result; // data:image/...;base64,...
+      // Mostrar preview local inmediatamente
+      showLocalImagePreview(chatId, base64);
+      // Enviar al servidor
+      S.socket.emit('private:send_image', {
+        chatId,
+        imageData: base64,
+        mimeType: file.type
+      });
+    };
+    reader.readAsDataURL(file);
+    document.body.removeChild(input);
+  };
+  document.body.appendChild(input);
+  input.click();
+}
+
+function showLocalImagePreview(chatId, base64) {
+  // El mensaje llegará por socket:private:message con type:'image'
+  // nada que hacer aquí extra
 }
 
 function appendPrivateMsg(chatId, msg) {
   const el=document.getElementById('pwm-'+chatId); if(!el)return;
   const d=document.createElement('div'); d.className='pw-msg';
-  d.innerHTML=`<span class="pw-msg-nick" style="color:${esc(msg.color)}">${esc(msg.nick)}:</span> <span class="pw-msg-text">${esc(msg.text)}</span>`;
+
+  if (msg.type === 'image' && msg.imageId) {
+    // Imagen temporal
+    const expiresAt = msg.expiresAt || (Date.now() + 15000);
+    const remaining = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+    const isMine = msg.nick === S.myNick;
+
+    d.className = 'pw-msg pw-msg-img-wrapper' + (isMine ? ' pw-msg-mine' : '');
+    d.setAttribute('data-image-id', msg.imageId);
+    d.innerHTML = `
+      <div class="pw-img-meta">
+        <span class="pw-msg-nick" style="color:${esc(msg.color)}">${esc(msg.nick)}</span>
+        <span class="pw-img-timer" id="timer-${msg.imageId}">⏱ ${remaining}s</span>
+      </div>
+      <div class="pw-img-container" id="imgc-${msg.imageId}">
+        <div class="pw-img-loading">Cargando imagen...</div>
+      </div>
+      <div class="pw-img-hint">🔥 Esta imagen desaparecerá en <strong>${remaining}s</strong></div>
+    `;
+
+    // Cargar imagen desde servidor
+    loadTempImage(msg.imageId, chatId);
+    // Iniciar contador regresivo
+    startImageTimer(msg.imageId, expiresAt);
+
+  } else {
+    d.className = 'pw-msg' + (msg.nick === S.myNick ? ' pw-msg-mine' : '');
+    d.innerHTML = `<span class="pw-msg-nick" style="color:${esc(msg.color)}">${esc(msg.nick)}:</span> <span class="pw-msg-text">${esc(msg.text)}</span>`;
+  }
+
   el.appendChild(d);
+}
+
+async function loadTempImage(imageId, chatId) {
+  try {
+    const res = await fetch(`/api/temp-image/${imageId}`);
+    if (!res.ok) { handleImageExpired(imageId, chatId); return; }
+    const data = await res.json();
+    const container = document.getElementById('imgc-'+imageId);
+    if (!container) return;
+    container.innerHTML = `<img src="${data.data}" class="pw-temp-img" alt="Imagen temporal" onclick="viewFullImage('${imageId}')"/>`;
+  } catch(e) {
+    handleImageExpired(imageId, chatId);
+  }
+}
+
+const imageTimers = {};
+
+function startImageTimer(imageId, expiresAt) {
+  const tick = () => {
+    const remaining = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+    const timerEl = document.getElementById('timer-'+imageId);
+    if (timerEl) timerEl.textContent = `⏱ ${remaining}s`;
+    if (remaining > 0) {
+      imageTimers[imageId] = setTimeout(tick, 1000);
+    }
+  };
+  imageTimers[imageId] = setTimeout(tick, 1000);
+}
+
+function handleImageExpired(imageId, chatId) {
+  clearTimeout(imageTimers[imageId]);
+  delete imageTimers[imageId];
+  const wrapper = document.querySelector(`[data-image-id="${imageId}"]`);
+  if (wrapper) {
+    wrapper.innerHTML = `<div class="pw-img-expired">
+      <span class="pw-img-expired-icon">🔥</span>
+      <span>Imagen quemada — ya no existe</span>
+    </div>`;
+    wrapper.className = 'pw-msg pw-img-expired-wrapper';
+  }
+}
+
+function viewFullImage(imageId) {
+  const img = document.querySelector(`#imgc-${imageId} img`);
+  if (!img) return;
+  const overlay = document.createElement('div');
+  overlay.className = 'img-fullscreen-overlay';
+  overlay.innerHTML = `<img src="${img.src}" class="img-fullscreen-img"/>
+    <button class="img-fullscreen-close" onclick="this.parentElement.remove()">✕</button>
+    <div class="img-fullscreen-hint">⚠️ No puedes guardar imágenes temporales</div>`;
+  overlay.onclick = (e) => { if(e.target===overlay) overlay.remove(); };
+  document.body.appendChild(overlay);
+}
+
+function handlePrivateMessage(chatId, msg) {
+  if(!S.privateChats[chatId]?.windowEl) openPrivateWindow(chatId,msg.nick,msg.color,[]);
+  appendPrivateMsg(chatId,msg);
+  scrollBottom(document.getElementById('pwm-'+chatId));
+  if(msg.nick!==S.myNick&&S.privateChats[chatId]){ S.privateChats[chatId].unread=(S.privateChats[chatId].unread||0)+1; updatePrivateList(); }
 }
 
 function showIncomingPrivate(chatId, fromNick, fromColor) {
